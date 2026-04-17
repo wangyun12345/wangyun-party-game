@@ -1,5 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd party-game && npm install",
+  "buildCommand": "cd party-game && npm run build",
+  "outputDirectory": "party-game/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/" }
   ]
