@@ -1,0 +1,8 @@
+name = "wangyun-party-game"
+compatibility_date = "2026-04-17"
+
+[assets]
+directory = "./party-game/dist"
+
+[build]
+command = "npm install --prefix party-game && npm run build --prefix party-game"

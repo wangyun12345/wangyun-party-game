@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install --prefix party-game",
+  "buildCommand": "npm run build --prefix party-game",
+  "outputDirectory": "party-game/dist"
+}
