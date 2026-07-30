@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* Mobile optimizations */
+html {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+body {
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection in specific elements */
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
