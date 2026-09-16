@@ -4,14 +4,14 @@
   "type": "module",
   "scripts": {
     "build": "npm --prefix party-game run build",
-    "typecheck:worker": "npm --prefix party-game exec -- tsc -p tsconfig.worker.json",
+    "typecheck:server": "npm --prefix party-game exec -- tsc -p tsconfig.server.json --noEmit",
     "test": "node --experimental-strip-types --test test/*.test.mjs",
     "lint": "npm --prefix party-game run lint",
-    "dev": "wrangler dev",
-    "deploy": "npm run build && wrangler deploy"
+    "dev": "npx vercel dev",
+    "deploy": "npm run build && npx vercel --prod"
   },
   "devDependencies": {
-    "tsx": "^4.23.13",
-    "wrangler": "^4.30.0"
+    "@upstash/redis": "^1.38.4",
+    "@vercel/node": "^5.10.2"
   }
 }

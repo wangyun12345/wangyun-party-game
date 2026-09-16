@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": [
+    "api/**/*.ts",
+    "src/**/*.ts",
+    "party-game/src/games/types.ts",
+    "party-game/src/games/registry.ts",
+    "party-game/src/games/register.ts",
+    "party-game/src/games/avalon/index.ts",
+    "party-game/src/games/goose-duck/index.ts"
+  ]
+}

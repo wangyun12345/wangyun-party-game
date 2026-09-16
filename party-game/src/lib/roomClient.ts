@@ -94,8 +94,8 @@ export class RoomSocket {
   private readonly onSnapshot: (snapshot: RoomSnapshot) => void
   private readonly onError: (error: RoomErrorMessage) => void
   private readonly onStatus: (status: 'connecting' | 'connected' | 'reconnecting' | 'disconnected') => void
-  private socket: WebSocket | null = null
-  private reconnectTimer: number | null = null
+  private pollTimer: number | null = null
+  private pollInFlight = false
   private closed = false
   private lastSequence = -1
   private requestCounter = 0
@@ -110,34 +110,55 @@ export class RoomSocket {
 
   connect(): void {
     this.closed = false
-    if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer)
-    this.onStatus(this.socket ? 'reconnecting' : 'connecting')
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    this.socket = new WebSocket(`${protocol}//${window.location.host}/api/rooms/${encodeURIComponent(this.roomCode)}/ws`, ['party-game.v1', this.sessionToken])
-    this.socket.addEventListener('open', () => this.onStatus('connected'))
-    this.socket.addEventListener('message', (event) => this.handleMessage(event.data))
-    this.socket.addEventListener('close', () => {
-      this.socket = null
-      if (this.closed) {
-        this.onStatus('disconnected')
-      } else {
-        this.onStatus('reconnecting')
-        this.reconnectTimer = window.setTimeout(() => this.connect(), 1500)
-      }
-    })
-    this.socket.addEventListener('error', () => this.onStatus('reconnecting'))
+    if (this.pollTimer !== null) window.clearInterval(this.pollTimer)
+    this.onStatus('connecting')
+    void this.refresh()
+    this.pollTimer = window.setInterval(() => { void this.refresh() }, 1200)
   }
 
   close(): void {
     this.closed = true
-    if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer)
-    this.socket?.close()
-    this.socket = null
+    if (this.pollTimer !== null) window.clearInterval(this.pollTimer)
+    this.pollTimer = null
+    this.onStatus('disconnected')
   }
 
   send(command: { type: string; payload?: Record<string, unknown> }): void {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return
-    this.socket.send(JSON.stringify({ type: 'command', id: `request-${++this.requestCounter}`, command }))
+    if (this.closed) return
+    void fetch(`${window.location.origin}/api/rooms/${encodeURIComponent(this.roomCode)}/command`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-session-token': this.sessionToken },
+      body: JSON.stringify({ command, requestId: `request-${++this.requestCounter}` }),
+    }).then(async (response) => {
+      const body = await response.json() as RoomSnapshot | RoomErrorMessage
+      if (!response.ok || body.type === 'error') {
+        this.onError(body as RoomErrorMessage)
+        return
+      }
+      this.handleMessage(JSON.stringify(body))
+    }).catch(() => this.onStatus('reconnecting'))
+  }
+
+  private async refresh(): Promise<void> {
+    if (this.closed || this.pollInFlight) return
+    this.pollInFlight = true
+    try {
+      const response = await fetch(`${window.location.origin}/api/rooms/${encodeURIComponent(this.roomCode)}/snapshot`, {
+        headers: { 'x-session-token': this.sessionToken },
+      })
+      const body = await response.json() as RoomSnapshot | RoomErrorMessage
+      if (!response.ok || body.type === 'error') {
+        this.onError(body as RoomErrorMessage)
+        this.onStatus(response.status === 401 ? 'disconnected' : 'reconnecting')
+        return
+      }
+      this.onStatus('connected')
+      this.handleMessage(JSON.stringify(body))
+    } catch {
+      this.onStatus('reconnecting')
+    } finally {
+      this.pollInFlight = false
+    }
   }
 
   private handleMessage(raw: string): void {
