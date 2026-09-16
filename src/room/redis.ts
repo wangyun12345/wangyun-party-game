@@ -1,5 +1,5 @@
 import { Redis } from '@upstash/redis'
-import type { RoomStorage } from './engine'
+import type { RoomStorage } from './engine.js'
 
 export interface RedisLike {
   get<T = unknown>(key: string): Promise<T | null>

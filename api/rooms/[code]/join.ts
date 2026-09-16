@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { codeFrom, nicknameFrom, requestBody, json, shareUrl, sessionToken, withApiError, redis } from '../../_shared'
-import { withRoom } from '../../../src/vercel-runtime'
+import { codeFrom, nicknameFrom, requestBody, json, shareUrl, sessionToken, withApiError, redis } from '../../_shared.js'
+import { withRoom } from '../../../src/vercel-runtime.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'POST') {

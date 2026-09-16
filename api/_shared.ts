@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { RoomError } from '../src/room/engine'
-import { errorBody, errorStatus, redisClient } from '../src/vercel-runtime'
+import { RoomError } from '../src/room/engine.js'
+import { errorBody, errorStatus, redisClient } from '../src/vercel-runtime.js'
 
 export type JsonObject = Record<string, unknown>
 

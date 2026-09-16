@@ -1,8 +1,8 @@
 import { randomInt } from 'node:crypto'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { nicknameFrom, requestBody, json, shareUrl, withApiError, redis } from '../_shared'
-import { withRoom } from '../../src/vercel-runtime'
-import { RoomError } from '../../src/room/engine'
+import { nicknameFrom, requestBody, json, shareUrl, withApiError, redis } from '../_shared.js'
+import { withRoom } from '../../src/vercel-runtime.js'
+import { RoomError } from '../../src/room/engine.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'POST') {
