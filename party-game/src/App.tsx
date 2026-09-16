@@ -1,138 +1,78 @@
-﻿import { useState, useCallback } from 'react'
-import { supabase } from './lib/supabase'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { HomePage } from './lobby/HomePage'
 import { WaitingRoom } from './lobby/WaitingRoom'
 import { GameContainer } from './components/GameContainer'
 import { ConnectionBanner } from './components/ConnectionBanner'
-import { useRoomState } from './hooks/useRoomState'
-import { useHostEngine } from './hooks/useHostEngine'
-import { useHostPresence } from './hooks/useHostPresence'
-import { useWakeLock } from './hooks/useWakeLock'
-import { GameRegistry } from './games/registry'
-import type { Player } from './games/types'
+import { useRoomSocket } from './hooks/useRoomSocket'
+import { clearSession, joinRoom, loadSession, saveSession, leaveRoom, type JoinResult } from './lib/roomClient'
 import './games/register'
 import './App.css'
 
-type AppScreen = 'home' | 'waiting' | 'playing'
+function pathRoomCode(): string | null {
+  const match = window.location.pathname.match(/^\/room\/([0-9]{6})\/?$/i)
+  return match?.[1] ?? null
+}
 
 function App() {
-  const [screen, setScreen] = useState<AppScreen>('home')
-  const [roomId, setRoomId] = useState<string | null>(null)
+  const initialRoomCode = useMemo(() => pathRoomCode(), [])
+  const [joining, setJoining] = useState(Boolean(initialRoomCode && loadSession(initialRoomCode)))
+  const [roomCode, setRoomCode] = useState<string | null>(null)
+  const [sessionToken, setSessionToken] = useState<string | null>(null)
   const [playerId, setPlayerId] = useState<string | null>(null)
-  const [isHost, setIsHost] = useState(false)
+  const [isOrganizer, setIsOrganizer] = useState(false)
+  const [joinError, setJoinError] = useState('')
+  const { room, snapshot, status, error, sendCommand } = useRoomSocket(roomCode, sessionToken)
 
-  const { gameState, roomStatus, gameId, connected } = useRoomState(roomId)
-  const hostOnline = useHostPresence(roomId, playerId, isHost)
-
-  useHostEngine(roomId, gameId, isHost, gameState)
-
-  // Keep screen awake during game (especially important for host)
-  useWakeLock(screen === 'playing')
-
-  // When room status changes to 'playing', switch to playing screen
-  if (roomStatus === 'playing' && screen === 'waiting') {
-    setScreen('playing')
-  }
-
-  // When room status changes back to 'waiting' (return to lobby), switch to waiting screen
-  if (roomStatus === 'waiting' && screen === 'playing') {
-    setScreen('waiting')
-  }
-
-  const handleJoinRoom = useCallback((newRoomId: string, newPlayerId: string, host: boolean) => {
-    setRoomId(newRoomId)
-    setPlayerId(newPlayerId)
-    setIsHost(host)
-    setScreen('waiting')
+  const acceptJoin = useCallback((result: JoinResult) => {
+    const code = result.roomCode ?? result.room.code
+    setRoomCode(code)
+    setSessionToken(result.sessionToken)
+    setPlayerId(result.playerId)
+    setIsOrganizer(result.room.organizerId === result.playerId)
+    saveSession(code, result.sessionToken)
+    setJoining(false)
+    setJoinError('')
   }, [])
 
-  const handleGameStart = useCallback(() => {
-    setScreen('playing')
-  }, [])
+  useEffect(() => {
+    if (!initialRoomCode) return
+    const token = loadSession(initialRoomCode)
+    if (!token) return
+    let cancelled = false
+    joinRoom(initialRoomCode, '恢复', token).then((result) => {
+      if (!cancelled) acceptJoin(result)
+    }).catch(() => {
+      if (!cancelled) {
+        clearSession(initialRoomCode)
+        setJoining(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [acceptJoin, initialRoomCode])
 
-  const handleLeave = useCallback(() => {
-    setRoomId(null)
+  const handleLeave = useCallback(async () => {
+    if (roomCode && sessionToken) {
+      try { await leaveRoom(roomCode, sessionToken) } catch { /* room can already be expired */ }
+      clearSession(roomCode)
+    }
+    setRoomCode(null)
+    setSessionToken(null)
     setPlayerId(null)
-    setIsHost(false)
-    setScreen('home')
-  }, [])
+    setIsOrganizer(false)
+  }, [roomCode, sessionToken])
 
-  const handleReplay = useCallback(async () => {
-    if (!roomId || !gameId) return
-    const plugin = GameRegistry.get(gameId)
-    if (!plugin) return
+  if (joining) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">正在恢复房间...</div>
 
-    // Fetch current players
-    const { data: playersData } = await supabase
-      .from('players')
-      .select('id, nickname, is_host')
-      .eq('room_id', roomId)
-
-    if (!playersData || playersData.length === 0) return
-
-    const gamePlayers: Player[] = playersData.map((p) => ({
-      id: p.id,
-      nickname: p.nickname,
-      isHost: p.is_host,
-    }))
-
-    const newGameState = plugin.initGame(gamePlayers)
-
-    // Clear old actions and reset game state
-    await supabase.from('actions').delete().eq('room_id', roomId)
-    await supabase
-      .from('rooms')
-      .update({ game_state: newGameState, status: 'playing' })
-      .eq('id', roomId)
-  }, [roomId, gameId])
-
-  const handleReturnLobby = useCallback(async () => {
-    if (!roomId) return
-
-    // Clear actions and reset room to waiting
-    await supabase.from('actions').delete().eq('room_id', roomId)
-    await supabase
-      .from('rooms')
-      .update({ game_state: null, status: 'waiting' })
-      .eq('id', roomId)
-
-    setScreen('waiting')
-  }, [roomId])
-
+  const screen = !room || !playerId ? 'home' : room.status === 'waiting' ? 'waiting' : 'playing'
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      <ConnectionBanner connected={connected} />
-
-      {!hostOnline && screen === 'playing' && !isHost && (
-        <div className="fixed top-0 left-0 right-0 bg-yellow-600 text-white text-center py-2 text-sm z-40">
-          房主已断线，游戏暂停，等待房主重新连接
-        </div>
+      <ConnectionBanner status={roomCode ? status : 'connected'} error={error?.message ?? joinError} />
+      {screen === 'home' && <HomePage initialRoomCode={initialRoomCode} onJoinRoom={acceptJoin} />}
+      {screen === 'waiting' && room && roomCode && playerId && (
+        <WaitingRoom room={room} playerId={playerId} isOrganizer={isOrganizer} status={status} onCommand={sendCommand} onLeave={handleLeave} />
       )}
-
-      {screen === 'home' && (
-        <HomePage onJoinRoom={handleJoinRoom} />
-      )}
-
-      {screen === 'waiting' && roomId && playerId && (
-        <WaitingRoom
-          roomId={roomId}
-          playerId={playerId}
-          isHost={isHost}
-          onGameStart={handleGameStart}
-          onLeave={handleLeave}
-        />
-      )}
-
-      {screen === 'playing' && roomId && playerId && gameId && gameState && (
-        <GameContainer
-          gameId={gameId}
-          roomId={roomId}
-          playerId={playerId}
-          gameState={gameState}
-          isHost={isHost}
-          onReplay={handleReplay}
-          onReturnLobby={handleReturnLobby}
-        />
+      {screen === 'playing' && room && playerId && snapshot?.game && (
+        <GameContainer room={room} isOrganizer={isOrganizer} view={snapshot.game} winResult={snapshot.winResult} status={status} onCommand={sendCommand} />
       )}
     </div>
   )

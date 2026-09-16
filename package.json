@@ -1,0 +1,17 @@
+{
+  "name": "wangyun-party-game",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm --prefix party-game run build",
+    "typecheck:worker": "npm --prefix party-game exec -- tsc -p tsconfig.worker.json",
+    "test": "node --experimental-strip-types --test test/*.test.mjs",
+    "lint": "npm --prefix party-game run lint",
+    "dev": "wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.13",
+    "wrangler": "^4.30.0"
+  }
+}

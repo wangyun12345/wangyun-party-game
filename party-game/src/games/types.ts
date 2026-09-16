@@ -29,6 +29,8 @@ export interface ActionOption {
   type: string
   label: string
   disabled?: boolean
+  input?: { placeholder?: string; maxLength?: number }
+  layout?: 'grid' | 'grid-5'
   options?: { value: string; label: string }[]
 }
 

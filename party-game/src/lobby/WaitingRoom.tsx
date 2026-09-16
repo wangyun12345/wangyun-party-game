@@ -1,207 +1,54 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import { usePlayers } from '../hooks/usePlayers'
 import { GameRegistry } from '../games/registry'
-import type { Player } from '../games/types'
+import type { ConnectionStatus } from '../hooks/useRoomSocket'
+import type { RoomView } from '../lib/roomClient'
 
 interface WaitingRoomProps {
-  roomId: string
+  room: RoomView
   playerId: string
-  isHost: boolean
-  onGameStart: () => void
+  isOrganizer: boolean
+  status: ConnectionStatus
+  onCommand: (type: string, payload?: Record<string, unknown>) => void
   onLeave: () => void
 }
 
-export function WaitingRoom({ roomId, playerId, isHost, onGameStart, onLeave }: WaitingRoomProps) {
-  const players = usePlayers(roomId)
-  const [roomCode, setRoomCode] = useState('')
-  const [selectedGameId, setSelectedGameId] = useState<string | null>(null)
-  const [error, setError] = useState('')
-  const [starting, setStarting] = useState(false)
-
+export function WaitingRoom({ room, playerId, isOrganizer, status, onCommand, onLeave }: WaitingRoomProps) {
   const games = GameRegistry.getAll()
-
-  useEffect(() => {
-    const fetchCode = async () => {
-      const { data } = await supabase
-        .from('rooms')
-        .select('code, game_id')
-        .eq('id', roomId)
-        .single()
-      if (data) {
-        setRoomCode(data.code)
-        if (data.game_id) setSelectedGameId(data.game_id)
-      }
-    }
-    fetchCode()
-  }, [roomId])
-
-  // Non-host: listen for game_id changes and game start
-  useEffect(() => {
-    if (isHost) return
-
-    const channel = supabase
-      .channel(`waiting-${roomId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
-        (payload) => {
-          const row = payload.new as { game_id: string; status: string }
-          if (row.game_id) setSelectedGameId(row.game_id)
-          if (row.status === 'playing') onGameStart()
-        }
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [roomId, isHost, onGameStart])
-
-  const handleSelectGame = async (gameId: string) => {
-    setSelectedGameId(gameId)
-    setError('')
-    await supabase.from('rooms').update({ game_id: gameId }).eq('id', roomId)
-  }
-
-  const handleStartGame = async () => {
-    if (!selectedGameId) {
-      setError('请先选择游戏')
-      return
-    }
-
-    const plugin = GameRegistry.get(selectedGameId)
-    if (!plugin) {
-      setError('游戏配置失败')
-      return
-    }
-
-    if (players.length < plugin.minPlayers) {
-      setError(`至少需要 ${plugin.minPlayers} 名玩家`)
-      return
-    }
-
-    if (players.length > plugin.maxPlayers) {
-      setError(`最多 ${plugin.maxPlayers} 名玩家`)
-      return
-    }
-
-    setStarting(true)
-    setError('')
-
-    try {
-      const gamePlayers: Player[] = players.map((p) => ({
-        id: p.id,
-        nickname: p.nickname,
-        isHost: p.is_host,
-      }))
-
-      const gameState = plugin.initGame(gamePlayers)
-
-      await supabase
-        .from('rooms')
-        .update({
-          status: 'playing',
-          game_state: gameState,
-        })
-        .eq('id', roomId)
-
-      onGameStart()
-    } catch {
-      setError('启动游戏失败')
-    } finally {
-      setStarting(false)
-    }
-  }
-
-  const selectedPlugin = selectedGameId ? GameRegistry.get(selectedGameId) : null
-
+  const selected = room.gameId ? GameRegistry.get(room.gameId) : null
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-6">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-6 pt-10">
       <h2 className="text-2xl font-bold mb-2">等待大厅</h2>
-
       <div className="bg-gray-800 rounded-lg px-6 py-3 mb-6 text-center">
         <p className="text-gray-400 text-sm">房间码</p>
-        <p className="text-3xl font-mono font-bold tracking-widest text-indigo-400">{roomCode}</p>
-        <p className="text-xs text-gray-500 mt-1">告诉朋友这个房间码</p>
+        <p className="text-3xl font-mono font-bold tracking-widest text-indigo-400">{room.code}</p>
+        <button onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/room/${room.code}`)} className="text-xs text-indigo-300 mt-1">复制分享链接</button>
+        <img src={`https://quickchart.io/qr?size=160&text=${encodeURIComponent(`${window.location.origin}/room/${room.code}`)}`} alt="房间二维码" className="mx-auto mt-3 rounded bg-white p-1 w-40 h-40" />
       </div>
-
-      {/* Player list */}
+      <p className="text-xs text-gray-400 mb-4">组织者：{room.organizerOnline === false ? '暂时离线，游戏不会暂停' : '在线'}</p>
       <div className="w-full max-w-sm mb-6">
-        <h3 className="text-sm font-semibold text-gray-400 mb-2">玩家 ({players.length})</h3>
+        <h3 className="text-sm font-semibold text-gray-400 mb-2">玩家 ({room.players.length})</h3>
         <div className="space-y-2">
-          {players.map((p) => (
-            <div
-              key={p.id}
-              className={`flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 ${
-                p.id === playerId ? 'border border-indigo-500/50' : ''
-              }`}
-            >
-              <span>{p.nickname}</span>
+          {room.players.map((player) => (
+            <div key={player.id} className={`flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 ${player.id === playerId ? 'border border-indigo-500/50' : ''}`}>
+              <span>{player.nickname}</span>
               <div className="flex gap-2 text-xs">
-                {p.is_host && <span className="bg-yellow-600/30 text-yellow-300 px-2 py-0.5 rounded">房主</span>}
-                {p.id === playerId && <span className="text-gray-500">你</span>}
+                {player.isOrganizer && <span className="bg-yellow-600/30 text-yellow-300 px-2 py-0.5 rounded">组织者</span>}
+                {player.id === playerId && <span className="text-gray-500">你</span>}
+                {isOrganizer && !player.isOrganizer && <button onClick={() => onCommand('transfer_organizer', { playerId: player.id })} className="text-indigo-300">转交</button>}
               </div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Game selection (host only) */}
-      {isHost && (
+      {isOrganizer ? (
         <div className="w-full max-w-sm mb-6">
           <h3 className="text-sm font-semibold text-gray-400 mb-2">选择游戏</h3>
           <div className="grid grid-cols-2 gap-2">
-            {games.map((game) => (
-              <button
-                key={game.id}
-                onClick={() => handleSelectGame(game.id)}
-                className={`rounded-lg px-4 py-3 text-sm font-medium min-h-[44px] ${
-                  selectedGameId === game.id
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-                }`}
-              >
-                {game.name}
-                <span className="block text-xs text-gray-400 mt-0.5">
-                  {game.minPlayers}-{game.maxPlayers}人
-                </span>
-              </button>
-            ))}
+            {games.map((game) => <button key={game.id} onClick={() => onCommand('select_game', { gameId: game.id })} className={`rounded-lg px-4 py-3 text-sm font-medium min-h-[44px] ${room.gameId === game.id ? 'bg-indigo-600' : 'bg-gray-800'}`}>{game.name}<span className="block text-xs text-gray-400 mt-0.5">{game.minPlayers}-{game.maxPlayers}人</span></button>)}
           </div>
+          <button onClick={() => onCommand('start_game')} disabled={!selected || status !== 'connected'} className="w-full mt-4 bg-green-600 disabled:opacity-50 rounded-lg py-3 font-semibold min-h-[44px]">开始游戏</button>
         </div>
-      )}
-
-      {/* Non-host: show selected game */}
-      {!isHost && selectedPlugin && (
-        <div className="w-full max-w-sm mb-6 bg-gray-800 rounded-lg px-4 py-3 text-center">
-          <p className="text-gray-400 text-sm">房主选择了</p>
-          <p className="text-lg font-semibold">{selectedPlugin.name}</p>
-          <p className="text-xs text-gray-500">{selectedPlugin.minPlayers}-{selectedPlugin.maxPlayers}人</p>
-        </div>
-      )}
-
-      {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-
-      {/* Start / Leave buttons */}
-      <div className="w-full max-w-sm space-y-3">
-        {isHost && (
-          <button
-            onClick={handleStartGame}
-            disabled={starting || !selectedGameId}
-            className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-lg py-3 font-semibold min-h-[44px]"
-          >
-            {starting ? '启动中...' : '开始游戏'}
-          </button>
-        )}
-        {!isHost && (
-          <p className="text-center text-gray-400 text-sm">等待房主开始游戏...</p>
-        )}
-        <button
-          onClick={onLeave}
-          className="w-full bg-gray-700 hover:bg-gray-600 rounded-lg py-3 font-semibold min-h-[44px]"
-        >
-          离开房间
-        </button>
-      </div>
+      ) : <p className="text-center text-gray-400 text-sm mb-6">{selected ? `等待组织者开始${selected.name}...` : '等待组织者选择游戏...'}</p>}
+      <button onClick={onLeave} className="w-full max-w-sm bg-gray-700 rounded-lg py-3 font-semibold min-h-[44px]">离开房间</button>
     </div>
   )
 }
