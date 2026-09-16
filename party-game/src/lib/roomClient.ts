@@ -49,8 +49,14 @@ function apiUrl(path: string): string {
 
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(path), { ...init, headers: { 'content-type': 'application/json', ...(init.headers ?? {}) } })
-  const body = await response.json() as T & { message?: string }
-  if (!response.ok) throw new Error(body.message ?? '房间请求失败')
+  const raw = await response.text()
+  let body: (T & { message?: string; error?: string }) | null = null
+  try { body = JSON.parse(raw) as T & { message?: string; error?: string } } catch { /* Vercel may return a plain-text runtime error */ }
+  if (!response.ok) {
+    const detail = body?.message ?? body?.error ?? raw.trim()
+    throw new Error(detail ? `房间请求失败（${response.status}）：${detail}` : `房间请求失败（${response.status}）`)
+  }
+  if (!body) throw new Error(`房间服务返回了无效响应（${response.status}）`)
   return body
 }
 
