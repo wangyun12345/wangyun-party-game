@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { codeFrom, json, requestBody, sessionToken, withApiError, redis } from '../../_shared.ts'
-import { withRoom } from '../../../src/vercel-runtime.ts'
-import { RoomError } from '../../../src/room/engine.ts'
+import { codeFrom, json, requestBody, sessionToken, withApiError, redis } from '../../_shared'
+import { withRoom } from '../../../src/vercel-runtime'
+import { RoomError } from '../../../src/room/engine'
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'POST') {

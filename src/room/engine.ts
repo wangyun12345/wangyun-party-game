@@ -1,4 +1,4 @@
-import type { Action, GameState, Player, PhaseUI, WinResult } from '../../party-game/src/games/types.ts'
+import type { Action, GameState, Player, PhaseUI, WinResult } from '../../party-game/src/games/types'
 
 export interface GamePluginLike {
   id: string

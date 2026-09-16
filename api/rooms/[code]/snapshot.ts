@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { codeFrom, json, queryValue, sessionToken, withApiError, redis } from '../../_shared.ts'
-import { roomEngine } from '../../../src/vercel-runtime.ts'
+import { codeFrom, json, queryValue, sessionToken, withApiError, redis } from '../../_shared'
+import { roomEngine } from '../../../src/vercel-runtime'
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'GET') {

@@ -1,7 +1,7 @@
-import { GameRegistry } from '../party-game/src/games/registry.ts'
-import '../party-game/src/games/register.ts'
-import { RoomEngine, RoomError } from './room/engine.ts'
-import { createRedisClient, RedisRoomStorage, withRoomLock, type RedisLike } from './room/redis.ts'
+import { GameRegistry } from '../party-game/src/games/registry'
+import '../party-game/src/games/register'
+import { RoomEngine, RoomError } from './room/engine'
+import { createRedisClient, RedisRoomStorage, withRoomLock, type RedisLike } from './room/redis'
 
 export const gameCatalog = { get: (id: string) => GameRegistry.get(id) }
 
