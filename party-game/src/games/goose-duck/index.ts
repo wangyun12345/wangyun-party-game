@@ -1,5 +1,5 @@
-import type { GamePlugin, Player, GameState, Action, PhaseUI, WinResult } from '../types.ts'
-import { GameRegistry } from '../registry.ts'
+import type { GamePlugin, Player, GameState, Action, PhaseUI, WinResult } from '../types.js'
+import { GameRegistry } from '../registry.js'
 
 type Role = 'goose' | 'duck'
 

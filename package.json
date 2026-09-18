@@ -5,7 +5,7 @@
   "scripts": {
     "build": "npm --prefix party-game run build",
     "typecheck:server": "npm --prefix party-game exec -- tsc -p tsconfig.server.json --noEmit",
-    "test": "node --experimental-strip-types --test test/*.test.mjs",
+    "test": "node --experimental-loader ./test/resolve-ts-js-loader.mjs --experimental-strip-types --test test/*.test.mjs",
     "lint": "npm --prefix party-game run lint",
     "dev": "npx vercel dev",
     "deploy": "npm run build && npx vercel --prod"
