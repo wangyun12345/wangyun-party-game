@@ -1,4 +1,4 @@
-import type { GamePlugin } from './types'
+import type { GamePlugin } from './types.js'
 
 class GameRegistryImpl {
   private plugins: Map<string, GamePlugin> = new Map()
