@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import health from '../api/health.ts'
 import createRoom from '../api/rooms/index.ts'
+import { errorBody, errorStatus } from '../src/vercel-runtime.ts'
 
 function response() {
   return {
@@ -34,4 +35,14 @@ test('room function loads through the Vercel import graph and reports missing st
       else process.env[name] = previous[name]
     })
   }
+})
+
+test('Upstash runtime failures are reported as temporary storage errors', () => {
+  const error = new Error('Unauthorized request to Upstash Redis')
+  error.name = 'UpstashError'
+  assert.equal(errorStatus(error), 503)
+  assert.deepEqual(errorBody(error), {
+    error: 'storage_unavailable',
+    message: '房间存储连接失败，请检查当前 Vercel 环境的 Upstash Redis 配置',
+  })
 })

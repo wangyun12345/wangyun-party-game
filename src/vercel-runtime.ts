@@ -33,6 +33,9 @@ export function errorBody(error: unknown): { error: string; message: string } {
   if (error instanceof Error && error.message.includes('UPSTASH_REDIS')) {
     return { error: 'storage_not_configured', message: '房间存储尚未配置，请在 Vercel 绑定 Upstash Redis' }
   }
+  if (isStorageFailure(error)) {
+    return { error: 'storage_unavailable', message: '房间存储连接失败，请检查当前 Vercel 环境的 Upstash Redis 配置' }
+  }
   if (error instanceof Error && error.message === 'room_busy') {
     return { error: 'room_busy', message: '房间正在处理上一条操作，请稍后重试' }
   }
@@ -42,6 +45,13 @@ export function errorBody(error: unknown): { error: string; message: string } {
 
 export function errorStatus(error: unknown): number {
   if (error instanceof Error && error.message.includes('UPSTASH_REDIS')) return 503
+  if (isStorageFailure(error)) return 503
   if (error instanceof Error && error.message === 'room_busy') return 503
   return statusFor(error)
+}
+
+function isStorageFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const details = `${error.name} ${error.message}`.toLowerCase()
+  return /upstash|redis|fetch failed|exhausted all retries|econn|enotfound|etimedout|socket/.test(details)
 }
